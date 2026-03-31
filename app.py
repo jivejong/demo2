@@ -9,18 +9,25 @@ from PIL import Image
 import streamlit as st
 import os
 
-# Clear any cached secrets from the previous failed runs
-st.cache_data.clear()
-st.cache_resource.clear()
+st.title("Final Secret Diagnostic")
 
-# DIAGNOSTIC
+# Check 1: What keys are actually visible?
+found_keys = list(st.secrets.keys())
+st.write(f"🔍 **Keys found in st.secrets:** `{found_keys}`")
+
+# Check 2: Direct Validation
 if "GENAI_API_KEY" in st.secrets:
-    st.success("✅ New Key detected in Cloud Secrets!")
-    import google.genai as genai
-    client = genai.Client(api_key=st.secrets["GENAI_API_KEY"])
+    st.success("✅ The key exists in Streamlit Cloud!")
+    # Attempt to initialize
+    from google import genai
+    try:
+        client = genai.Client(api_key=st.secrets["GENAI_API_KEY"])
+        st.write("🚀 Client initialized successfully.")
+    except Exception as e:
+        st.error(f"❌ Client failed to initialize: {e}")
 else:
-    st.error("❌ Still Missing! GitHub might still have a hidden .streamlit folder.")
-    st.write("Current visible keys:", list(st.secrets.keys()))
+    st.error("❌ GENAI_API_KEY is still missing from the environment.")
+    st.info("💡 If 'Keys found' is empty, Streamlit isn't saving your Secrets box properly.")
 
 # 2. Check if it leaked into the OS Environment (sometimes happens on Cloud)
 st.write("### 2. OS Environment Check")
