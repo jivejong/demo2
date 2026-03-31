@@ -62,15 +62,20 @@ def run_agentic_pipeline(image_file):
         }
         """
 
+        import time
+
+        # ... inside run_agentic_pipeline ...
         try:
-            # Modern SDK Call
             response = client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=[prompt, raw_img]
             )
             data = json.loads(clean_json(response.text))
         except Exception as e:
-            st.error(f"Inference Failed: {e}")
+            if "429" in str(e):
+                st.error("🚦 Rate Limit Hit: Google is busy. Please wait 30 seconds and try again.")
+            else:
+                st.error(f"Inference Failed: {e}")
             return None
 
         # --- NARRATOR (TTS) ---
