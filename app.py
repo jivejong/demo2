@@ -6,6 +6,7 @@ import io
 import re
 import os
 from PIL import Image
+import time
 
 # --- 1. CONFIG & CLIENT SETUP ---
 st.set_page_config(page_title="Agentic Poet v4", page_icon="📸", layout="wide")
@@ -44,51 +45,61 @@ def get_mood_music(mood):
             return f.read()
     return None
 
+import time
+
 def run_agentic_pipeline(image_file):
-    """Orchestrates the Visionary, Bard, Narrator, and Maestro agents."""
-    with st.status("🤖 Running Multi-Agent Workflow...", expanded=True) as status:
-        st.write("🔍 **Visionary**: Scanning pixels...")
-        st.write("✍️ **Bard**: Crafting stanzas...")
+    """The 'Resource-Friendly' Pipeline"""
+    with st.status("🤖 Orchestrating Agents...", expanded=True) as status:
         
+        # --- RESIZE IMAGE (Critical for 429 errors) ---
+        st.write("⚙️ Optimizing image for API...")
         raw_img = Image.open(image_file)
+        # Resize to max 1024px while keeping aspect ratio
+        raw_img.thumbnail((1024, 1024)) 
         
         prompt = """
         Analyze this image and return ONLY a raw JSON object:
         {
-          "description": "A literal 2-sentence summary of the image.",
-          "entities": ["list", "of", "detected", "objects"],
-          "poem": "A 4-line rhythmic poem inspired by the image.",
+          "description": "2-sentence summary.",
+          "entities": ["list", "of", "objects"],
+          "poem": "A 4-line rhythmic poem.",
           "mood": "MELANCHOLY | WHIMSICAL | EPIC | EERIE"
         }
         """
 
-        import time
-
-        # ... inside run_agentic_pipeline ...
-        try:
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=[prompt, raw_img]
-            )
-            data = json.loads(clean_json(response.text))
-        except Exception as e:
-            if "429" in str(e):
-                st.error("🚦 Rate Limit Hit: Google is busy. Please wait 30 seconds and try again.")
-            else:
-                st.error(f"Inference Failed: {e}")
+        # --- RETRY LOGIC ---
+        data = None
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                st.write(f"📡 API Request (Attempt {attempt + 1})...")
+                response = client.models.generate_content(
+                    model="gemini-1.5-flash",
+                    contents=[prompt, raw_img]
+                )
+                data = json.loads(clean_json(response.text))
+                break # Success! Exit the loop.
+            except Exception as e:
+                if "429" in str(e):
+                    st.warning("🚦 Rate limit hit. Cooling down for 5 seconds...")
+                    time.sleep(5) # Give the API a breather
+                else:
+                    st.error(f"Error: {e}")
+                    return None
+        
+        if not data:
+            st.error("🛑 Google is currently over-capacity. Try again in 1 minute.")
             return None
 
-        # --- NARRATOR (TTS) ---
-        st.write("🎙️ **Narrator**: Recording recitation...")
+        # --- NARRATOR & MAESTRO (Rest of code stays same) ---
+        st.write("🎙️ Recording Narrator...")
         tts = gTTS(text=data['poem'], lang='en')
         voice_io = io.BytesIO()
         tts.write_to_fp(voice_io)
         
-        # --- MAESTRO (Music Selection) ---
-        st.write("🎹 **Maestro**: Selecting atmospheric score...")
         music_bytes = get_mood_music(data['mood'])
         
-        status.update(label="Creative Cycle Complete!", state="complete", expanded=False)
+        status.update(label="Complete!", state="complete", expanded=False)
         return data, voice_io.getvalue(), music_bytes
 
 # --- 4. STREAMLIT INTERFACE ---
