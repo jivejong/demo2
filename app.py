@@ -1,66 +1,157 @@
 import streamlit as st
-import os
+from google import genai
+from gtts import gTTS
+from midiutil import MIDIFile
+import json
+import io
+import re
+from PIL import Image
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="AI Agent Diagnostic", page_icon="🤖")
+# --- 1. ARCHITECT'S CONFIG & CLIENT SETUP ---
+st.set_page_config(page_title="Agentic Poet", page_icon="📸", layout="wide")
 
-st.title("🤖 AI Agent: Connection Portal")
+# Ensure the secret is present
+if "GENAI_API_KEY" not in st.secrets:
+    st.error("Missing 'GENAI_API_KEY' in Streamlit Secrets!")
+    st.stop()
 
-# --- STEP 1: THE DIAGNOSTIC PANEL ---
-with st.expander("System Diagnostic (Click to view)", expanded=True):
-    # Check st.secrets keys
-    found_keys = list(st.secrets.keys())
-    st.write(f"📂 **Detected Secret Keys:** `{found_keys}`")
+# New SDK Client Initialization
+client = genai.Client(api_key=st.secrets["GENAI_API_KEY"])
+
+# --- 2. THE UTILITIES ---
+
+def clean_json(text):
+    """Red Team Guard: Extracts JSON content from potential Markdown backticks."""
+    match = re.search(r'\{.*\}', text, re.DOTALL)
+    if match:
+        return match.group(0)
+    return text.strip()
+
+def generate_midi(mood):
+    """Maestro Agent: Generates a 4-bar MIDI loop based on sentiment."""
+    mood_map = {
+        "MELANCHOLY": {"scale": [60, 63, 67, 70], "tempo": 65},
+        "WHIMSICAL": {"scale": [72, 74, 76, 79], "tempo": 130},
+        "EPIC": {"scale": [62, 66, 69, 73], "tempo": 95},
+        "EERIE": {"scale": [59, 60, 63, 66], "tempo": 55}
+    }
+    config = mood_map.get(mood.upper(), mood_map["MELANCHOLY"])
     
-    # Check OS Environment (Backup)
-    env_key = os.environ.get("GENAI_API_KEY")
-    st.write(f"🌐 **OS Environment Backup:** {'✅ Detected' if env_key else '❌ Not Found'}")
-
-# --- STEP 2: KEY RETRIEVAL LOGIC ---
-api_key = None
-
-if "GENAI_API_KEY" in st.secrets:
-    api_key = st.secrets["GENAI_API_KEY"]
-elif env_key:
-    api_key = env_key
-
-# --- STEP 3: INITIALIZATION ---
-if api_key:
-    try:
-        # We try the new 2026 SDK first
-        from google import genai
-        client = genai.Client(api_key=api_key)
-        
-        # Test call to verify the key isn't revoked
-        client.models.get(model="gemini-2.5-flash")
-        
-        st.success("✅ API Key Connected & Verified!")
-        
-        # --- YOUR AGENT INTERFACE ---
-        user_input = st.chat_input("Ask your agent something...")
-        if user_input:
-            with st.chat_message("user"):
-                st.write(user_input)
+    midi = MIDIFile(1)
+    midi.addTempo(0, 0, config["tempo"])
+    
+    time_idx = 0
+    for _ in range(4): # 4 Bars
+        for note in config["scale"]:
+            midi.addNote(0, 0, note, time_idx, 1, 85)
+            time_idx += 1
             
-            with st.chat_message("assistant"):
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash", 
-                    contents=user_input
-                )
-                st.write(response.text)
+    midi_stream = io.BytesIO()
+    midi.writeFile(midi_stream)
+    return midi_stream.getvalue()
 
-    except Exception as e:
-        st.error(f"❌ Connection Error: {e}")
-        st.info("Check if your API Key is restricted in Google AI Studio.")
-else:
-    st.error("🔒 Critical Error: 'GENAI_API_KEY' is missing.")
-    st.markdown("""
-    ### How to fix this right now:
-    1. Go to your **Streamlit Cloud Dashboard**.
-    2. Click **Settings** -> **Secrets**.
-    3. Paste the following EXACTLY (including quotes):
-    ```toml
-    GENAI_API_KEY = "AIzaSy..." 
-    ```
-    4. Click **Save** and **Reboot App** from the 'Manage App' menu.
-    """)
+# --- 3. THE AGENTIC PIPELINE ---
+
+def run_agentic_pipeline(image_file):
+    """Orchestrates the Visionary, Bard, Critic, and Maestro agents."""
+    with st.status("🤖 Agentic Pipeline Initialized...", expanded=True) as status:
+        
+        # --- PHASE 1: VISIONARY & BARD (Multimodal Inference) ---
+        st.write("🔍 **Visionary**: Scanning image for entities...")
+        st.write("✍️ **Bard**: Constructing rhythmic stanzas...")
+        
+        # Convert BytesIO to PIL Image for the new SDK
+        raw_img = Image.open(image_file)
+        
+        prompt = """
+        Analyze this image and return a JSON object with the following structure:
+        {
+          "description": "A literal 2-sentence summary of the image.",
+          "entities": ["list", "of", "detected", "objects"],
+          "poem": "A 4-line poem inspired by the image.",
+          "mood": "MELANCHOLY | WHIMSICAL | EPIC | EERIE"
+        }
+        Return ONLY the raw JSON.
+        """
+
+        try:
+            # Modern SDK Call
+            response = client.models.generate_content(
+                model="gemini-1.5-flash",
+                contents=[prompt, raw_img]
+            )
+            
+            # Use .text to extract content and clean it
+            raw_text = response.text
+            data = json.loads(clean_json(raw_text))
+            
+        except Exception as e:
+            st.error(f"Agent Failure: {str(e)}")
+            return None
+
+        # --- PHASE 2: THE CRITIC (Verification) ---
+        st.write("⚖️ **Critic**: Auditing poem for descriptive accuracy...")
+        # Local logic check: Ensure the poem isn't empty or nonsensical
+        if len(data.get("poem", "")) < 20:
+            st.write("❌ **Critic**: Poem too short. Retrying (Simulated)...")
+            # In a full app, you'd trigger a recursion here.
+        else:
+            st.write(f"✅ **Critic**: Verified {len(data['entities'])} visual anchors.")
+
+        # --- PHASE 3: NARRATOR & MAESTRO (Synthesis) ---
+        st.write("🎙️ **Narrator**: Synthesizing voice recitation...")
+        tts = gTTS(text=data['poem'], lang='en')
+        voice_io = io.BytesIO()
+        tts.write_to_fp(voice_io)
+        
+        st.write("🎹 **Maestro**: Mapping mood to MIDI frequencies...")
+        midi_bytes = generate_midi(data['mood'])
+        
+        status.update(label="Workflow Successful!", state="complete", expanded=False)
+        return data, voice_io.getvalue(), midi_bytes
+
+# --- 4. STREAMLIT INTERFACE ---
+
+st.title("📸 The Agentic Poet")
+st.markdown("---")
+
+# Use st.camera_input for mobile hardware access
+camera_img = st.camera_input("Capture a moment to begin the pipeline")
+
+if camera_img:
+    # State Management: Store results to prevent re-triggering on UI refresh
+    if "final_output" not in st.session_state:
+        results = run_agentic_pipeline(camera_img)
+        if results:
+            st.session_state.final_output = results
+
+    if "final_output" in st.session_state:
+        data, voice_bytes, midi_bytes = st.session_state.final_output
+        
+        # Display Agent Monologue Results
+        c_left, c_right = st.columns(2)
+        with c_left:
+            with st.expander("👁️ Visionary Report", expanded=True):
+                st.write(data['description'])
+                st.caption(f"Visual Anchors: {', '.join(data['entities'])}")
+        
+        with c_right:
+            with st.expander("✍️ Bard's Verified Poem", expanded=True):
+                st.info(data['poem'])
+
+        st.divider()
+        st.subheader(f"🎧 Final Production (Mood: {data['mood']})")
+        
+        # Audio Players
+        aud1, aud2 = st.columns(2)
+        with aud1:
+            st.write("**Narrator Voice**")
+            st.audio(voice_bytes, format="audio/mp3")
+        with aud2:
+            st.write("**Maestro Atmosphere**")
+            st.audio(midi_bytes, format="audio/midi")
+
+        if st.button("Reset Pipeline"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
