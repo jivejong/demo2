@@ -145,3 +145,13 @@ if st.session_state.final_output:
             )
             st.balloons()
     else:
+        st.warning("⚠️ Maestro could not find music files in /audio_library/. Playing voice only.")
+        st.audio(voice_bytes, format="audio/mp3")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # --- RESET BUTTON (Clears buffer and camera) ---
+    if st.button("🔄 START OVER", type="primary", use_container_width=True):
+        st.session_state.final_output = None
+        st.session_state.camera_key += 1 # Increments key to kill camera buffer
+        st.rerun()
