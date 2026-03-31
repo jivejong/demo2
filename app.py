@@ -145,28 +145,28 @@ if camera_img:
         # Audio Players
         aud1, aud2 = st.columns(2)
         with aud1:
-    st.write("**Narrator Voice**")
-    # Use unique keys to identify these in the DOM
-    st.audio(voice_bytes, format="audio/mp3")
+        st.write("**Narrator Voice**")
+        # Use unique keys to identify these in the DOM
+        st.audio(voice_bytes, format="audio/mp3")
 
-with aud2:
-    st.write("**Maestro Atmosphere** (Download to Play)")
-    # Since browsers struggle with raw MIDI, we provide a download 
-    # OR if you have a WAV version, use st.audio here.
-    st.download_button("Download Score", midi_bytes, file_name="mood.mid")
+    with aud2:
+        st.write("**Maestro Atmosphere** (Download to Play)")
+        # Since browsers struggle with raw MIDI, we provide a download 
+        # OR if you have a WAV version, use st.audio here.
+        st.download_button("Download Score", midi_bytes, file_name="mood.mid")
 
-# --- THE "SYNC" BUTTON ---
-if st.button("🎭 Play Performance"):
-    # This bit of JavaScript finds all audio tags on the page and plays them
-    st.components.v1.html(
-        """
-        <script>
-            var audios = window.parent.document.querySelectorAll('audio');
-            audios.forEach(audio => {
-                audio.currentTime = 0;
-                audio.play();
-            });
-        </script>
-        """,
-        height=0,
-    )
+    # --- THE "SYNC" BUTTON ---
+    if st.button("🎭 Play Performance"):
+        # This bit of JavaScript finds all audio tags on the page and plays them
+        st.components.v1.html(
+            """
+            <script>
+                var audios = window.parent.document.querySelectorAll('audio');
+                audios.forEach(audio => {
+                    audio.currentTime = 0;
+                    audio.play();
+                });
+            </script>
+            """,
+            height=0,
+        )
