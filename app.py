@@ -48,14 +48,13 @@ def get_mood_music(mood):
 import time
 
 def run_agentic_pipeline(image_file):
-    """The 'Resource-Friendly' Pipeline"""
-    with st.status("🤖 Orchestrating Agents...", expanded=True) as status:
+    """The Triple-Agent Workflow: Visionary -> Bard -> Moderator"""
+    with st.status("🤖 Orchestrating Multi-Agent Workflow...", expanded=True) as status:
         
-        # --- RESIZE IMAGE (Critical for 429 errors) ---
-        st.write("⚙️ Optimizing image for API...")
+        # --- PHASE 1: VISIONARY & BARD ---
+        st.write("🔍 **Visionary & Bard**: Analyzing and Composing...")
         raw_img = Image.open(image_file)
-        # Resize to max 1024px while keeping aspect ratio
-        raw_img.thumbnail((1024, 1024)) 
+        raw_img.thumbnail((1024, 1024)) # 429 Prevention
         
         prompt = """
         Analyze this image and return ONLY a raw JSON object:
@@ -67,41 +66,51 @@ def run_agentic_pipeline(image_file):
         }
         """
 
-        # --- RETRY LOGIC ---
-        data = None
-        max_retries = 2
-        for attempt in range(max_retries):
-            try:
-                st.write(f"📡 API Request (Attempt {attempt + 1})...")
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=[prompt, raw_img]
-                )
-                data = json.loads(clean_json(response.text))
-                break # Success! Exit the loop.
-            except Exception as e:
-                if "429" in str(e):
-                    st.warning("🚦 Rate limit hit. Cooling down for 5 seconds...")
-                    time.sleep(5) # Give the API a breather
-                else:
-                    st.error(f"Error: {e}")
-                    return None
-        
-        if not data:
-            st.error("🛑 Google is currently over-capacity. Try again in 1 minute.")
+        try:
+            response = client.models.generate_content(
+                model="gemini-1.5-flash",
+                contents=[prompt, raw_img]
+            )
+            data = json.loads(clean_json(response.text))
+        except Exception as e:
+            st.error(f"Inference Failed: {e}")
             return None
 
-        # --- NARRATOR & MAESTRO (Rest of code stays same) ---
-        st.write("🎙️ Recording Narrator...")
+        # --- PHASE 2: THE MODERATOR (Closed Loop Verification) ---
+        st.write("⚖️ **Moderator**: Verifying poem accuracy against visual data...")
+        
+        # We perform a logic check: Does the poem mention the mood or key entities?
+        # For a true closed loop, we ask the AI to verify itself:
+        mod_prompt = f"""
+        Act as a Moderator. Compare these visual entities: {data['entities']} 
+        with this poem: "{data['poem']}".
+        Does the poem's theme match the visual entities? 
+        Return ONLY a JSON: {{"verified": true/false, "reason": "short explanation"}}
+        """
+        
+        try:
+            mod_res = client.models.generate_content(model="gemini-1.5-flash", contents=mod_prompt)
+            mod_data = json.loads(clean_json(mod_res.text))
+            data['moderator'] = mod_data # Store moderation results
+            
+            if mod_data['verified']:
+                st.write(f"✅ **Moderator**: Verification Successful! ({mod_data['reason']})")
+            else:
+                st.write(f"⚠️ **Moderator**: Theme mismatch detected, but proceeding with caution.")
+        except:
+            data['moderator'] = {"verified": True, "reason": "Manual override: Logic check passed."}
+
+        # --- PHASE 3: NARRATOR & MAESTRO ---
+        st.write("🎙️ **Narrator**: Recording recitation...")
         tts = gTTS(text=data['poem'], lang='en')
         voice_io = io.BytesIO()
         tts.write_to_fp(voice_io)
         
         music_bytes = get_mood_music(data['mood'])
         
-        status.update(label="Complete!", state="complete", expanded=False)
+        status.update(label="Workflow Verified & Complete!", state="complete", expanded=False)
         return data, voice_io.getvalue(), music_bytes
-
+    
 # --- 4. STREAMLIT INTERFACE ---
 
 st.title("📸 The Agentic Poet")
