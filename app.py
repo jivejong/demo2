@@ -1,166 +1,145 @@
 import streamlit as st
 from google import genai
 from gtts import gTTS
-from midiutil import MIDIFile
 import json
 import io
 import re
+import os
 from PIL import Image
 
-# --- 1. ARCHITECT'S CONFIG & CLIENT SETUP ---
-st.set_page_config(page_title="Agentic Poet", page_icon="📸", layout="wide")
+# --- 1. CONFIG & CLIENT SETUP ---
+st.set_page_config(page_title="Agentic Poet v3", page_icon="📸", layout="wide")
 
-# Ensure the secret is present
-if "GENAI_API_KEY" not in st.secrets:
-    st.error("Missing 'GENAI_API_KEY' in Streamlit Secrets!")
+# Secure API Key Check
+if "GENAI_API_KEY" in st.secrets:
+    api_key = st.secrets["GENAI_API_KEY"]
+elif "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_API_KEY"]
+else:
+    st.error("Missing API Key in Streamlit Secrets!")
     st.stop()
 
-# New SDK Client Initialization
-client = genai.Client(api_key=st.secrets["GENAI_API_KEY"])
+client = genai.Client(api_key=api_key)
 
-# --- 2. THE UTILITIES ---
+# --- 2. UTILITIES ---
 
 def clean_json(text):
-    """Red Team Guard: Extracts JSON content from potential Markdown backticks."""
+    """Extracts JSON content from Markdown backticks."""
     match = re.search(r'\{.*\}', text, re.DOTALL)
-    if match:
-        return match.group(0)
-    return text.strip()
+    return match.group(0) if match else text.strip()
 
 def get_mood_music(mood):
-    """Maestro Agent: Selects the correct MP3 atmosphere from the library."""
+    """Maestro Agent: Loads an MP3 based on the detected mood."""
     mood = mood.upper()
-    # Path to your files in GitHub
-    file_path = f"audio_library/{mood.lower()}.mp3"
+    # Normalize to folder structure
+    path = f"audio_library/{mood.lower()}.mp3"
     
-    try:
-        with open(file_path, "rb") as f:
+    if os.path.exists(path):
+        with open(path, "rb") as f:
             return f.read()
-    except FileNotFoundError:
-        # Fallback to melancholy if something goes wrong
-        with open("audio_library/melancholy.mp3", "rb") as f:
-            return f.read()
-
-# --- Inside your Pipeline ---
-st.write("🎹 **Maestro**: Selecting atmospheric score...")
-music_bytes = get_mood_music(data['mood'])
-
+    else:
+        # Diagnostic fallback: if file is missing, return None
+        return None
 
 # --- 3. THE AGENTIC PIPELINE ---
 
 def run_agentic_pipeline(image_file):
-    """Orchestrates the Visionary, Bard, Critic, and Maestro agents."""
-    with st.status("🤖 Agentic Pipeline Initialized...", expanded=True) as status:
+    with st.status("🤖 Initializing Multi-Agent Workflow...", expanded=True) as status:
         
-        # --- PHASE 1: VISIONARY & BARD (Multimodal Inference) ---
-        st.write("🔍 **Visionary**: Scanning image for entities...")
-        st.write("✍️ **Bard**: Constructing rhythmic stanzas...")
+        st.write("🔍 **Visionary**: Scanning pixels...")
+        st.write("✍️ **Bard**: Crafting stanzas...")
         
-        # Convert BytesIO to PIL Image for the new SDK
         raw_img = Image.open(image_file)
         
         prompt = """
-        Analyze this image and return a JSON object with the following structure:
+        Analyze this image and return ONLY a raw JSON object:
         {
-          "description": "A literal 2-sentence summary of the image.",
-          "entities": ["list", "of", "detected", "objects"],
-          "poem": "A 4-line poem inspired by the image.",
+          "description": "2-sentence summary.",
+          "entities": ["list", "of", "objects"],
+          "poem": "A 4-line rhythmic poem.",
           "mood": "MELANCHOLY | WHIMSICAL | EPIC | EERIE"
         }
-        Return ONLY the raw JSON.
         """
 
         try:
-            # Modern SDK Call
             response = client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=[prompt, raw_img]
             )
-            
-            # Use .text to extract content and clean it
-            raw_text = response.text
-            data = json.loads(clean_json(raw_text))
-            
+            data = json.loads(clean_json(response.text))
         except Exception as e:
-            st.error(f"Agent Failure: {str(e)}")
+            st.error(f"Inference Failed: {e}")
             return None
 
-        # --- PHASE 2: THE CRITIC (Verification) ---
-        st.write("⚖️ **Critic**: Auditing poem for descriptive accuracy...")
-        # Local logic check: Ensure the poem isn't empty or nonsensical
-        if len(data.get("poem", "")) < 20:
-            st.write("❌ **Critic**: Poem too short. Retrying (Simulated)...")
-            # In a full app, you'd trigger a recursion here.
-        else:
-            st.write(f"✅ **Critic**: Verified {len(data['entities'])} visual anchors.")
-
-        # --- PHASE 3: NARRATOR & MAESTRO (Synthesis) ---
-        st.write("🎙️ **Narrator**: Synthesizing voice recitation...")
+        # --- NARRATOR (TTS) ---
+        st.write("🎙️ **Narrator**: Recording recitation...")
         tts = gTTS(text=data['poem'], lang='en')
         voice_io = io.BytesIO()
         tts.write_to_fp(voice_io)
         
-        st.write("🎹 **Maestro**: Mapping mood to MIDI frequencies...")
-        midi_bytes = generate_midi(data['mood'])
+        # --- MAESTRO (Music Selection) ---
+        st.write("🎹 **Maestro**: Selecting atmospheric score...")
+        music_bytes = get_mood_music(data['mood'])
         
-        status.update(label="Workflow Successful!", state="complete", expanded=False)
-        return data, voice_io.getvalue(), midi_bytes
+        status.update(label="Creative Cycle Complete!", state="complete", expanded=False)
+        return data, voice_io.getvalue(), music_bytes
 
-# --- 4. STREAMLIT INTERFACE ---
+# --- 4. INTERFACE ---
 
 st.title("📸 The Agentic Poet")
-st.markdown("---")
+st.caption("Capture a photo. Let the agents perform.")
 
-# Use st.camera_input for mobile hardware access
-camera_img = st.camera_input("Capture a moment to begin the pipeline")
+camera_img = st.camera_input("Take a photo")
 
 if camera_img:
-    # State Management: Store results to prevent re-triggering on UI refresh
     if "final_output" not in st.session_state:
         results = run_agentic_pipeline(camera_img)
         if results:
             st.session_state.final_output = results
 
     if "final_output" in st.session_state:
-        data, voice_bytes, midi_bytes = st.session_state.final_output
+        data, voice_bytes, music_bytes = st.session_state.final_output
         
-        # Display Agent Monologue Results
-        c_left, c_right = st.columns(2)
-        with c_left:
-            with st.expander("👁️ Visionary Report", expanded=True):
-                st.write(data['description'])
-                st.caption(f"Visual Anchors: {', '.join(data['entities'])}")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("👁️ Visionary Report")
+            st.write(data['description'])
+            st.caption(f"Tags: {', '.join(data['entities'])}")
         
-        with c_right:
-            with st.expander("✍️ Bard's Verified Poem", expanded=True):
-                st.info(data['poem'])
+        with col2:
+            st.subheader("✍️ The Poem")
+            st.info(data['poem'])
 
-        
         st.divider()
-        st.subheader(f"🎧 Final Production (Mood: {data['mood']})")
-
-        # We hide the individual players slightly so the 'Performance' button feels like the main event
-        with st.expander("Adjust Individual Volumes"):
-            st.write("Narrator")
-            st.audio(voice_bytes, format="audio/mp3")
-            st.write("Music")
-            st.audio(music_bytes, format="audio/mp3")
-
-        # THE MAGIC BUTTON
-        if st.button("🎭 PLAY PERFORMANCE", use_container_width=True):
-            st.components.v1.html(
-                """
-                <script>
-                    var audios = window.parent.document.querySelectorAll('audio');
-                    audios.forEach(audio => {
-                        audio.muted = false;
-                        audio.currentTime = 0;
-                        audio.play();
-                    });
-                </script>
-                """,
-                height=0,
-            )
-            st.balloons()
-
+        st.subheader(f"🎭 The Performance (Mood: {data['mood']})")
+        
+        # The Secret Sync Mechanism
+        if music_bytes:
+            # Hidden players
+            st.write("Adjust mix:")
+            c1, c2 = st.columns(2)
+            with c1: st.audio(voice_bytes, format="audio/mp3")
+            with c2: st.audio(music_bytes, format="audio/mp3")
             
+            # The Sync Button
+            if st.button("▶️ PLAY COMBINED PERFORMANCE", use_container_width=True):
+                st.components.v1.html(
+                    """
+                    <script>
+                        var audios = window.parent.document.querySelectorAll('audio');
+                        audios.forEach(audio => {
+                            audio.currentTime = 0;
+                            audio.play();
+                        });
+                    </script>
+                    """, height=0
+                )
+                st.balloons()
+        else:
+            st.warning("⚠️ Maestro could not find the music files in /audio_library/")
+            st.audio(voice_bytes)
+
+        if st.button("Reset"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
