@@ -27,28 +27,24 @@ def clean_json(text):
         return match.group(0)
     return text.strip()
 
-def generate_midi(mood):
-    """Maestro Agent: Generates a 4-bar MIDI loop based on sentiment."""
-    mood_map = {
-        "MELANCHOLY": {"scale": [60, 63, 67, 70], "tempo": 65},
-        "WHIMSICAL": {"scale": [72, 74, 76, 79], "tempo": 130},
-        "EPIC": {"scale": [62, 66, 69, 73], "tempo": 95},
-        "EERIE": {"scale": [59, 60, 63, 66], "tempo": 55}
-    }
-    config = mood_map.get(mood.upper(), mood_map["MELANCHOLY"])
+def get_mood_music(mood):
+    """Maestro Agent: Selects the correct MP3 atmosphere from the library."""
+    mood = mood.upper()
+    # Path to your files in GitHub
+    file_path = f"audio_library/{mood.lower()}.mp3"
     
-    midi = MIDIFile(1)
-    midi.addTempo(0, 0, config["tempo"])
-    
-    time_idx = 0
-    for _ in range(4): # 4 Bars
-        for note in config["scale"]:
-            midi.addNote(0, 0, note, time_idx, 1, 85)
-            time_idx += 1
-            
-    midi_stream = io.BytesIO()
-    midi.writeFile(midi_stream)
-    return midi_stream.getvalue()
+    try:
+        with open(file_path, "rb") as f:
+            return f.read()
+    except FileNotFoundError:
+        # Fallback to melancholy if something goes wrong
+        with open("audio_library/melancholy.mp3", "rb") as f:
+            return f.read()
+
+# --- Inside your Pipeline ---
+st.write("🎹 **Maestro**: Selecting atmospheric score...")
+music_bytes = get_mood_music(data['mood'])
+
 
 # --- 3. THE AGENTIC PIPELINE ---
 
@@ -139,30 +135,25 @@ if camera_img:
             with st.expander("✍️ Bard's Verified Poem", expanded=True):
                 st.info(data['poem'])
 
+        
         st.divider()
         st.subheader(f"🎧 Final Production (Mood: {data['mood']})")
-        
-        # Audio Players
-        aud1, aud2 = st.columns(2)
-        with aud1:
-            st.write("**Narrator Voice**")
-            # Use unique keys to identify these in the DOM
+
+        # We hide the individual players slightly so the 'Performance' button feels like the main event
+        with st.expander("Adjust Individual Volumes"):
+            st.write("Narrator")
             st.audio(voice_bytes, format="audio/mp3")
+            st.write("Music")
+            st.audio(music_bytes, format="audio/mp3")
 
-        with aud2:
-            st.write("**Maestro Atmosphere** (Download to Play)")
-            # Since browsers struggle with raw MIDI, we provide a download 
-            # OR if you have a WAV version, use st.audio here.
-            st.download_button("Download Score", midi_bytes, file_name="mood.mid")
-
-        # --- THE "SYNC" BUTTON ---
-        if st.button("🎭 Play Performance"):
-            # This bit of JavaScript finds all audio tags on the page and plays them
+        # THE MAGIC BUTTON
+        if st.button("🎭 PLAY PERFORMANCE", use_container_width=True):
             st.components.v1.html(
                 """
                 <script>
                     var audios = window.parent.document.querySelectorAll('audio');
                     audios.forEach(audio => {
+                        audio.muted = false;
                         audio.currentTime = 0;
                         audio.play();
                     });
@@ -170,3 +161,6 @@ if camera_img:
                 """,
                 height=0,
             )
+            st.balloons()
+
+            
