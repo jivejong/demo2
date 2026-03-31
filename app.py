@@ -32,7 +32,7 @@ if api_key:
         client = genai.Client(api_key=api_key)
         
         # Test call to verify the key isn't revoked
-        client.models.get(model="gemini-1.5-flash")
+        client.models.get(model="gemini-2.5-flash")
         
         st.success("✅ API Key Connected & Verified!")
         
