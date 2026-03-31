@@ -145,9 +145,9 @@ if camera_img:
         # Audio Players
         aud1, aud2 = st.columns(2)
         with aud1:
-        st.write("**Narrator Voice**")
-        # Use unique keys to identify these in the DOM
-        st.audio(voice_bytes, format="audio/mp3")
+            st.write("**Narrator Voice**")
+            # Use unique keys to identify these in the DOM
+            st.audio(voice_bytes, format="audio/mp3")
 
         with aud2:
             st.write("**Maestro Atmosphere** (Download to Play)")
