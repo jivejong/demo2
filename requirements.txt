@@ -3,3 +3,5 @@ streamlit
 gTTS
 Pillow
 MIDIUtil
+groq
+google-generativeai
