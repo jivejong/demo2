@@ -43,7 +43,7 @@ gemini_client = genai.Client(api_key=gemini_key)
 groq_client   = Groq(api_key=st.secrets["GROQ_API_KEY"].strip())
 
 GROQ_MODEL   = "llama-3.3-70b-versatile"
-GEMINI_MODEL = "gemini-1.5-flash"        # only used for vision
+GEMINI_MODEL = "gemini-2.5-flash"        # only used for vision
 
 # ── 3. SESSION STATE ──────────────────────────────────────────────────────────
 for key, default in [("camera_key", 0), ("final_output", None)]:
