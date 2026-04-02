@@ -89,7 +89,7 @@ def run_agentic_pipeline(image_file):
         """
         
         try:
-            mod_res = client.models.generate_content(model="gemini-1.5-flash", contents=mod_prompt)
+            mod_res = client.models.generate_content(model="gemini-2.5-flash", contents=mod_prompt)
             mod_data = json.loads(clean_json(mod_res.text))
             data['moderator'] = mod_data # Store moderation results
             
