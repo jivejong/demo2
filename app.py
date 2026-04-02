@@ -263,7 +263,7 @@ def run_pipeline(image_file):
 
         # ── NARRATOR: gTTS (local, no API call) ───────────────────────────
         st.write("🎙️ **Narrator**: Recording poem recitation...")
-        tts      = gTTS(text=poem, lang='en')
+        tts = gTTS(text=poem, lang='en', tld='co.uk')
         voice_io = io.BytesIO()
         tts.write_to_fp(voice_io)
 
